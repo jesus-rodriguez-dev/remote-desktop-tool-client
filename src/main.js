@@ -24,10 +24,12 @@ socket.on('connection-msg', () => {
 
 socket.on('stop-stream', () => {
   stop();
+  if (!peer.disconnected) peer.disconnect()
 });
 
 socket.on('disconnect', () => {
   stop();
+  if (!peer.disconnected) peer.disconnect()
   console.log('Server disconnected');
 });
 
@@ -41,6 +43,25 @@ socket.on('mouse-click', () => {
 
 socket.on('type', (key) => {
   ipcRenderer.send('type', key);
+});
+
+socket.on('quality', (quality) => {
+  switch (quality) {
+    case 'hig':
+      streamQuality = 0.95;
+      break;
+    case 'med':
+      streamQuality = 0.7;
+      break;
+    case 'low':
+      streamQuality = 0.5;
+      break;
+    default:
+      streamQuality = 0.5;
+      break;
+  }
+  stop();
+  startStreaming();
 });
 
 let start = async () => {
@@ -75,8 +96,6 @@ let stop = () => {
         track.stop();
     });
   }
-  // Disconnects peer client
-  if (!peer.disconnected) peer.disconnect()
 };
 
 let getScreenSize = () => {
@@ -89,31 +108,31 @@ let getScreenSize = () => {
 // STREAMING
 let idViewer;
 let stream; 
+let streamQuality = 0.5;
 
 // Starts streaming when peerID is received from viewer
 socket.on('sendPeerId', async  (id) => {
+  if (peer.disconnected) peer.reconnect();
+  idViewer = id;
+  startStreaming();
+});
+
+let startStreaming = async () => {
   let screenSize = getScreenSize();
   let screenX = screenSize.x;
   let screenY = screenSize.y;
-  
-  if (peer.disconnected) peer.reconnect();
 
-  idViewer = id;
   stream = await navigator.mediaDevices.getUserMedia({
     audio: false,
     video: {
       mandatory: {
         chromeMediaSource: 'desktop',
-          maxWidth: (screenX * 0.5),
-          maxHeight: (screenY * 0.5),
-          // minWidth: 1280,
-          // maxWidth: 1280,
-          // minHeight: 720,
-          // maxHeight: 720
+          maxWidth: (screenX * streamQuality),
+          maxHeight: (screenY * streamQuality),
           minFrameRate: 10,
           maxFrameRate: 10
-      },
+      }
     }
   });
   peer.call(idViewer, stream);
-});
+}
